@@ -5,11 +5,13 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.Authorization;
 
 using Entry.Auth.Configuration;
 using Entry.Auth.Data;
 using Entry.Auth.Models;
 using Entry.Auth.Services;
+using Entry.Auth.Requirements;
 
 namespace Entry.Auth.Extensions
 {
@@ -74,6 +76,24 @@ namespace Entry.Auth.Extensions
     {
       services.AddScoped<IJwtService, JwtService>();
       services.AddScoped<IRefreshTokenService, RefreshTokenService>();
+
+      return services;
+    }
+
+    public static IServiceCollection AddAppAuthorization(
+      this IServiceCollection services
+    )
+    {
+      services.AddHttpContextAccessor();
+      services.AddScoped<IAuthorizationHandler, SilentRefreshHandler>();
+
+      services.AddAuthorization(options =>
+      {
+        options.AddPolicy("SilentRefresh", policy =>
+        {
+          policy.Requirements.Add(new SilentRefreshRequirement());
+        });
+      });
 
       return services;
     }

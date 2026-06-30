@@ -15,17 +15,26 @@ namespace Entry.Auth.Controllers
     private readonly UserManager<AppUser> _userManager;
     private readonly IJwtService _jwtService;
     private readonly IRefreshTokenService _refreshService;
+    private readonly IEmailService _emailService;
+    private readonly IWebHostEnvironment _env;
 
-
-    public AuthController(UserManager<AppUser> userManager, IJwtService jwtService, IRefreshTokenService refreshService)
+    public AuthController(
+      UserManager<AppUser> userManager,
+      IJwtService jwtService,
+      IRefreshTokenService refreshService,
+      IEmailService emailService,
+      IWebHostEnvironment env
+    )
     {
       _userManager = userManager;
       _jwtService = jwtService;
       _refreshService = refreshService;
+      _emailService = emailService;
+      _env = env;
     }
 
     [HttpPost("register")]
-    public async Task<IActionResult> Register(RegisterDto dto)
+    public async Task<IActionResult> Register([FromBody] RegisterDto dto)
     {
       var user = new AppUser
       {
@@ -42,25 +51,33 @@ namespace Entry.Auth.Controllers
 
       var confirmationLink = $"http://localhost:5277/verify-email?userId={user.Id}&token={Uri.EscapeDataString(token)}";
 
+      await _emailService.SendAsync(user.Email, "Verify your email", $"Please click the link to verify your email: <a href=\"{confirmationLink}\">Verify Email</a>");
+
+      if (_env.IsDevelopment())
+      {
+        Console.WriteLine($"[DEV] Email token: {token}");
+        Console.WriteLine($"[DEV] Email confirmation link: {confirmationLink}");
+      }
+
       return Ok(new { message = "User created. Please verify your email." });
     }
 
-    [HttpGet("verify-email")]
-    public async Task<IActionResult> VerifyEmail(VerifyEmailDto dto)
+    [HttpPost("verify-email")]
+    public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailDto dto)
     {
-      var user = await _userManager.FindByIdAsync(dto.UserId);
-      if(user == null) return BadRequest(new { message = "Invalid user." });
+        var user = await _userManager.FindByIdAsync(dto.UserId);
+        if (user == null) return BadRequest(new { message = "Invalid user." });
 
-      var result = await _userManager.ConfirmEmailAsync(user, dto.Token);
+        var result = await _userManager.ConfirmEmailAsync(user, dto.Token);
 
-      if(!result.Succeeded)
-        return BadRequest("Invalid token or user already verified.");
+        if (!result.Succeeded)
+            return BadRequest(new { message = "Invalid token or user already verified." });
 
-      return Ok(new { message = "Email verified successfully. You can now login." });
+        return Ok(new { message = "Email verified successfully. You can now login." });
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login(LoginDto dto)
+    public async Task<IActionResult> Login([FromBody] LoginDto dto)
     {
       var user = await _userManager.FindByEmailAsync(dto.Email);
       if(user == null ) return Unauthorized();

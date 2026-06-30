@@ -18,7 +18,7 @@ namespace Entry.Auth.Controllers
       _userManager = userManager;
     }
 
-    [Authorize]
+    [Authorize(Policy = "SilentRefresh")]
     [HttpGet("me")]
     public async Task<IActionResult> Me()
     {
@@ -34,7 +34,7 @@ namespace Entry.Auth.Controllers
       });
     }
 
-    [Authorize]
+    [Authorize(Policy = "SilentRefresh")]
     [HttpPut("update")]
     public async Task<IActionResult> Update(UserUpdateDto dto)
     {
@@ -55,7 +55,7 @@ namespace Entry.Auth.Controllers
       return Ok(new { message = "User updated successfully." });
     }
 
-    [Authorize]
+    [Authorize(Policy = "SilentRefresh")]
     [HttpDelete("delete")]
     public async Task<IActionResult> Delete()
     {

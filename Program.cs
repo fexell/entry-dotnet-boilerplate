@@ -1,5 +1,5 @@
 using Entry.Auth.Extensions;
-using Entry.Auth.Middlewares;
+using Entry.Auth.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,14 +7,14 @@ builder.Services
     .AddAppDbContext(builder.Configuration)
     .AddAppIdentity()
     .AddJwtAuthentication(builder.Configuration)
-    .AddAppServices();
+    .AddAppServices()
+    .AddAppAuthorization();
 
+builder.Services.AddHttpClient<IEmailService, EmailService>();
+builder.Services.AddHostedService<EmailVerificationRefreshService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
-// Register middleware as scoped
-builder.Services.AddScoped<SilentRefreshMiddleware>();
 
 var app = builder.Build();
 
@@ -25,25 +25,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
 app.UseRouting();
-
-app.Use(async (context, next) =>
-{
-    var endpoint = context.GetEndpoint();
-
-    var requiresAuth = endpoint?.Metadata
-        .GetMetadata<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>() != null;
-
-    if (requiresAuth)
-    {
-        var middleware = new SilentRefreshMiddleware();
-        await middleware.InvokeAsync(context);
-    }
-
-    await next();
-});
-
 app.UseAuthentication();
 app.UseAuthorization();
 
