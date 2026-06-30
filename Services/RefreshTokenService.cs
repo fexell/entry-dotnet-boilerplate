@@ -9,7 +9,7 @@ namespace Entry.Auth.Services
   public interface IRefreshTokenService
   {
     Task<string> CreateRefreshTokenAsync(string userId);
-    Task<string?> RefreshTokenAsync(string refreshToken);
+    Task<TokenPair?> RefreshTokenAsync(string refreshToken);
   }
 
   public class RefreshTokenService : IRefreshTokenService
@@ -41,26 +41,26 @@ namespace Entry.Auth.Services
       return token;
     }
 
-    public async Task<string?> RefreshTokenAsync(string refreshToken)
+    public async Task<TokenPair?> RefreshTokenAsync(string refreshToken)
     {
-      var token = await _db.RefreshTokens
-        .FirstOrDefaultAsync(x => x.Token == refreshToken);
-
-      if(token == null) return null;
-      if(token.Revoked) return null;
-      if(token.ExpiresAt < DateTime.UtcNow) return null;
+      var token = await _db.RefreshTokens.FirstOrDefaultAsync(x => x.Token == refreshToken);
+      if (token == null || token.Revoked || token.ExpiresAt < DateTime.UtcNow)
+        return null;
 
       var user = await _db.Users.FirstOrDefaultAsync(x => x.Id == token.UserId);
-      if(user == null) return null;
+      if (user == null) return null;
 
       token.Revoked = true;
       await _db.SaveChangesAsync();
 
       var newRefresh = await CreateRefreshTokenAsync(user.Id);
-
       var newJwt = _jwtService.GenerateToken(user);
 
-      return newJwt;
+      return new TokenPair
+      {
+        AccessToken = newJwt,
+        RefreshToken = newRefresh
+      };
     }
   }
 }

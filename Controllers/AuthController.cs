@@ -45,7 +45,7 @@ namespace Entry.Auth.Controllers
       var result = await _userManager.CreateAsync(user, dto.Password);
 
       if(!result.Succeeded)
-        return BadRequest(result.Errors);
+        return BadRequest(new { message = "Registration failed.", errors = result.Errors.Select(e => e.Description) });
 
       var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
 
@@ -66,26 +66,50 @@ namespace Entry.Auth.Controllers
     public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailDto dto)
     {
         var user = await _userManager.FindByIdAsync(dto.UserId);
-        if (user == null) return BadRequest(new { message = "Invalid user." });
+        if (user == null) return NotFound(new { message = "User not found." });
 
         var result = await _userManager.ConfirmEmailAsync(user, dto.Token);
 
         if (!result.Succeeded)
-            return BadRequest(new { message = "Invalid token or user already verified." });
+            return Conflict(new { message = "Email already verified." });
 
         return Ok(new { message = "Email verified successfully. You can now login." });
+    }
+
+    [HttpPost("resend-verification")]
+    public async Task<IActionResult> ResendVerification([FromBody] ResendVerificationDto dto)
+    {
+        var user = await _userManager.FindByEmailAsync(dto.Email);
+        if (user == null) return BadRequest(new { message = "User not found." });
+
+        if (await _userManager.IsEmailConfirmedAsync(user)) return BadRequest(new { message = "Email already verified." });
+
+        var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+        var confirmationLink = $"http://localhost:5277/verify-email?userId={user.Id}&token={Uri.EscapeDataString(token)}";
+
+        if(user.Email is null) return BadRequest(new { message = "User email is null." });
+
+        await _emailService.SendAsync(user.Email, "Verify your email", $"Please click the link to verify your email: <a href=\"{confirmationLink}\">Verify Email</a>");
+
+        if (_env.IsDevelopment())
+        {
+            Console.WriteLine($"[DEV] Email token: {token}");
+            Console.WriteLine($"[DEV] Email confirmation link: {confirmationLink}");
+        }
+
+        return Ok(new { message = "Verification email sent." });
     }
 
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginDto dto)
     {
       var user = await _userManager.FindByEmailAsync(dto.Email);
-      if(user == null ) return Unauthorized();
+      if(user == null ) return Unauthorized(new { message = "Invalid credentials." });
 
-      if(!await _userManager.IsEmailConfirmedAsync(user)) return Unauthorized("Email not verified.");
+      if(!await _userManager.IsEmailConfirmedAsync(user)) return Forbid();
 
       var valid = await _userManager.CheckPasswordAsync(user, dto.Password);
-      if(!valid) return Unauthorized();
+      if(!valid) return Unauthorized(new { message = "Invalid credentials." });
 
       var token = _jwtService.GenerateToken(user);
       var refresh = await _refreshService.CreateRefreshTokenAsync(user.Id);
@@ -97,9 +121,9 @@ namespace Entry.Auth.Controllers
     public async Task<IActionResult> Refresh(RefreshDto dto)
     {
       var newToken = await _refreshService.RefreshTokenAsync(dto.RefreshToken);
-      if(newToken == null) return Unauthorized();
+      if(newToken == null) return BadRequest(new { message = "Invalid refresh token." });
 
-      return Ok(new { token = newToken });
+      return Ok(newToken);
     }
   }
 }

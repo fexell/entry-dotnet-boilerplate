@@ -1,8 +1,10 @@
 using Entry.Auth.Extensions;
 using Entry.Auth.Services;
+using Entry.Auth.Filters;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Services
 builder.Services
     .AddAppDbContext(builder.Configuration)
     .AddAppIdentity()
@@ -11,13 +13,19 @@ builder.Services
     .AddAppAuthorization();
 
 builder.Services.AddHttpClient<IEmailService, EmailService>();
-builder.Services.AddHostedService<EmailVerificationRefreshService>();
-builder.Services.AddControllers();
+
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<ValidationFilter>();
+});
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddHostedService<EmailVerificationRefreshService>();
 
 var app = builder.Build();
 
+// Middleware
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -26,6 +34,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseRouting();
+
 app.UseAuthentication();
 app.UseAuthorization();
 

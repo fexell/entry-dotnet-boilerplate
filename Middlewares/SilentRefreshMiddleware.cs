@@ -51,9 +51,9 @@ namespace Entry.Auth.Middlewares
       }
 
       // Try refresh
-      var newAccessToken = await refreshService.RefreshTokenAsync(refreshToken);
+      var newTokens = await refreshService.RefreshTokenAsync(refreshToken);
 
-      if (newAccessToken == null)
+      if (newTokens == null)
       {
           context.Response.Cookies.Delete("accessToken");
           context.Response.Cookies.Delete("refreshToken");
@@ -61,7 +61,7 @@ namespace Entry.Auth.Middlewares
       }
 
       // Set new access token
-      context.Response.Cookies.Append("accessToken", newAccessToken, new CookieOptions
+      context.Response.Cookies.Append("accessToken", newTokens.AccessToken, new CookieOptions
       {
           HttpOnly = true,
           Secure = true,
@@ -70,7 +70,7 @@ namespace Entry.Auth.Middlewares
 
       // Rotate refresh token
       var newRefreshToken = await refreshService.CreateRefreshTokenAsync(
-          handler.ReadJwtToken(newAccessToken).Subject
+          handler.ReadJwtToken(newTokens.RefreshToken).Subject
       );
 
       context.Response.Cookies.Append("refreshToken", newRefreshToken, new CookieOptions

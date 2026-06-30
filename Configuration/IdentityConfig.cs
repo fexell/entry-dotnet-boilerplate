@@ -6,19 +6,21 @@ namespace Entry.Auth.Configuration
   {
     public static void ConfigureIdentityOptions(IdentityOptions options)
     {
-      options.Password.RequireDigit = false;
-      options.Password.RequireLowercase = false;
-      options.Password.RequireUppercase = false;
+      options.Password.RequireDigit = true;
+      options.Password.RequireLowercase = true;
+      options.Password.RequireUppercase = true;
       options.Password.RequireNonAlphanumeric = false;
-      options.Password.RequiredLength = 6;
+      options.Password.RequiredLength = 8;
 
-      options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+      options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(10);
       options.Lockout.MaxFailedAccessAttempts = 5;
       options.Lockout.AllowedForNewUsers = true;
 
       options.User.RequireUniqueEmail = true;
+      options.User.AllowedUserNameCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
 
       options.SignIn.RequireConfirmedEmail = true;
+      options.SignIn.RequireConfirmedAccount = true;
       options.SignIn.RequireConfirmedPhoneNumber = false;
     }
   }
