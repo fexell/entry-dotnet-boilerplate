@@ -1,71 +1,85 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
-using Entry.Auth.Models;
 using Entry.Auth.DTOs;
+using Entry.Auth.Models;
+using Entry.Auth.Services;
 
 namespace Entry.Auth.Controllers
 {
+  [Authorize]
   [ApiController]
   [Route("api/[controller]")]
   public class UserController : ControllerBase
   {
-    private readonly UserManager<AppUser> _userManager;
+    private readonly IUserService _userService;
 
-    public UserController(UserManager<AppUser> userManager)
+    public UserController(IUserService userService)
     {
-      _userManager = userManager;
+      _userService = userService;
     }
 
-    [Authorize(Policy = "SilentRefresh")]
+    // ------------------------------------------------------
+    // GET /api/user/me
+    // ------------------------------------------------------
+
     [HttpGet("me")]
     public async Task<IActionResult> Me()
     {
-      var user = await _userManager.GetUserAsync(User);
-      if(user == null) return Unauthorized();
+      var userId = User.FindFirst("sub")?.Value;
+      if (string.IsNullOrEmpty(userId))
+        return Unauthorized();
 
-      return Ok(new
-      {
-        user.Id,
-        user.Email,
-        user.UserName,
-        user.CreatedAt
-      });
+      var user = await _userService.GetByIdAsync(userId);
+      if (user == null)
+        return Unauthorized();
+
+      var dto = await _userService.GetUserMeAsync(user);
+      return Ok(dto);
     }
 
-    [Authorize(Policy = "SilentRefresh")]
+    // ------------------------------------------------------
+    // PUT /api/user/update
+    // ------------------------------------------------------
+
     [HttpPut("update")]
-    public async Task<IActionResult> Update(UserUpdateDto dto)
+    public async Task<IActionResult> Update([FromBody] UserUpdateDto dto)
     {
-      var user = await _userManager.GetUserAsync(User);
-      if(user == null) return Unauthorized();
+      var userId = User.FindFirst("sub")?.Value;
+      if (string.IsNullOrEmpty(userId))
+        return Unauthorized();
 
-      if(!string.IsNullOrWhiteSpace(dto.Email))
-        user.Email = dto.Email;
+      var user = await _userService.GetByIdAsync(userId);
+      if (user == null)
+        return Unauthorized();
 
-      if(!string.IsNullOrWhiteSpace(dto.Username))
-        user.UserName = dto.Username;
+      var success = await _userService.UpdateUserAsync(user, dto);
 
-      var result = await _userManager.UpdateAsync(user);
-
-      if(!result.Succeeded)
-        return BadRequest(result.Errors);
+      if (!success)
+        return BadRequest(new { message = "No changes were applied." });
 
       return Ok(new { message = "User updated successfully." });
     }
 
-    [Authorize(Policy = "SilentRefresh")]
+    // ------------------------------------------------------
+    // DELETE /api/user/delete
+    // ------------------------------------------------------
+
     [HttpDelete("delete")]
     public async Task<IActionResult> Delete()
     {
-      var user = await _userManager.GetUserAsync(User);
-      if(user == null) return Unauthorized();
+      var userId = User.FindFirst("sub")?.Value;
+      if (string.IsNullOrEmpty(userId))
+        return Unauthorized();
 
-      var result = await _userManager.DeleteAsync(user);
+      var user = await _userService.GetByIdAsync(userId);
+      if (user == null)
+        return Unauthorized();
 
-      if(!result.Succeeded)
-        return BadRequest(result.Errors);
+      var result = await _userService.DeleteUserAsync(user);
+
+      if (!result)
+        return BadRequest(new { message = "Failed to delete user." });
 
       return Ok(new { message = "User deleted successfully." });
     }

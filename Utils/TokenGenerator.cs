@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using System.Text;
 
 namespace Entry.Auth.Utils
 {
@@ -8,7 +7,6 @@ namespace Entry.Auth.Utils
     public static string GenerateRandomToken(int length = 60)
     {
       var bytes = RandomNumberGenerator.GetBytes(length);
-
       return Convert.ToBase64String(bytes);
     }
   }

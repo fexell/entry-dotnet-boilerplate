@@ -4,11 +4,6 @@ using System.Text.Json;
 
 namespace Entry.Auth.Services
 {
-  public interface IEmailService
-  {
-    Task SendAsync(string to, string subject, string htmlBody);
-  }
-
   public class EmailService : IEmailService
   {
     private readonly HttpClient _http;
@@ -28,20 +23,53 @@ namespace Entry.Auth.Services
         from = "onboarding@resend.dev",
         to = new[] { to },
         subject,
-        html = htmlBody,
+        html = htmlBody
       };
 
-      var json = JsonSerializer.Serialize(payload);
-      var content = new StringContent(json, Encoding.UTF8, "application/json");
+      const int maxRetries = 3;
 
-      _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
-
-      var response = await _http.PostAsync("https://api.resend.com/emails", content);
-
-      if (!response.IsSuccessStatusCode)
+      for (int attempt = 1; attempt <= maxRetries; attempt++)
       {
-        var error = await response.Content.ReadAsStringAsync();
-        throw new Exception($"Failed to send email: {error}");
+        try
+        {
+          using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+          var json = JsonSerializer.Serialize(payload);
+          using var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+          _http.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", _apiKey);
+
+          var response = await _http.PostAsync(
+            "https://api.resend.com/emails",
+            content,
+            cts.Token
+          );
+
+          if (response.IsSuccessStatusCode)
+            return;
+
+          var error = await response.Content.ReadAsStringAsync();
+
+          if (attempt == maxRetries)
+            throw new Exception($"Failed to send email after {maxRetries} attempts: {error}");
+
+          await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)));
+        }
+        catch (TaskCanceledException)
+        {
+          if (attempt == maxRetries)
+            throw new Exception($"Email sending timed out after {maxRetries} attempts.");
+
+          await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)));
+        }
+        catch (Exception ex)
+        {
+          if (attempt == maxRetries)
+            throw new Exception($"Failed to send email after {maxRetries} attempts: {ex.Message}");
+
+          await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)));
+        }
       }
     }
   }

@@ -1,6 +1,7 @@
 using Entry.Auth.Extensions;
 using Entry.Auth.Services;
 using Entry.Auth.Filters;
+using Entry.Auth.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,7 +22,7 @@ builder.Services.AddControllers(options =>
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddHostedService<EmailVerificationRefreshService>();
+// builder.Services.AddHostedService<EmailVerificationRefreshService>();
 
 var app = builder.Build();
 
@@ -34,6 +35,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseRouting();
+
+// Silent refresh BEFORE authentication
+app.UseMiddleware<SilentRefreshMiddleware>();
 
 app.UseAuthentication();
 app.UseAuthorization();

@@ -7,11 +7,6 @@ using Entry.Auth.Models;
 
 namespace Entry.Auth.Services
 {
-  public interface IJwtService
-  {
-    string GenerateToken(AppUser user);
-  }
-
   public class JwtService : IJwtService
   {
     private readonly IConfiguration _config;
@@ -21,7 +16,7 @@ namespace Entry.Auth.Services
       _config = config;
     }
 
-    public string GenerateToken(AppUser user)
+    public JwtTokenResult GenerateToken(AppUser user)
     {
       var key = new SymmetricSecurityKey(
         Encoding.UTF8.GetBytes(_config["Jwt:Key"]!)
@@ -36,15 +31,31 @@ namespace Entry.Auth.Services
         new Claim("username", user.UserName ?? "")
       };
 
+      var expires = DateTime.UtcNow.AddHours(1);
+
       var token = new JwtSecurityToken(
         issuer: _config["Jwt:Issuer"],
         audience: _config["Jwt:Audience"],
         claims: claims,
-        expires: DateTime.UtcNow.AddHours(1),
+        expires: expires,
         signingCredentials: creds
       );
 
-      return new JwtSecurityTokenHandler().WriteToken(token);
+      var jwt = new JwtSecurityTokenHandler().WriteToken(token);
+
+      return new JwtTokenResult
+      {
+        Token = jwt,
+        ExpiresAt = expires,
+        ExpiresInSeconds = (int)(expires - DateTime.UtcNow).TotalSeconds
+      };
     }
+  }
+
+  public class JwtTokenResult
+  {
+    public string Token { get; set; } = string.Empty;
+    public DateTime ExpiresAt { get; set; }
+    public int ExpiresInSeconds { get; set; }
   }
 }

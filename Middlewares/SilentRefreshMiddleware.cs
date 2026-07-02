@@ -1,84 +1,109 @@
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using System.IdentityModel.Tokens.Jwt;
-using System.Threading.Tasks;
 
 using Entry.Auth.Services;
 using Entry.Auth.Models;
+using Entry.Auth.Data;
+using Entry.Auth.Utils;
 
 namespace Entry.Auth.Middlewares
 {
   public class SilentRefreshMiddleware
   {
+    private readonly RequestDelegate _next;
+
+    public SilentRefreshMiddleware(RequestDelegate next)
+    {
+      _next = next;
+    }
+    
     public async Task InvokeAsync(HttpContext context)
     {
-      var jwtService = context.RequestServices.GetRequiredService<IJwtService>();
-      var refreshService = context.RequestServices.GetRequiredService<IRefreshTokenService>();
+      var authService = context.RequestServices.GetRequiredService<IAuthService>();
       var userManager = context.RequestServices.GetRequiredService<UserManager<AppUser>>();
+      var db = context.RequestServices.GetRequiredService<AppDbContext>();
 
-      var accessToken = context.Request.Cookies["accessToken"];
-      var refreshToken = context.Request.Cookies["refreshToken"];
+      var accessToken = CookieHelper.Get(context.Request, "accessToken");
+      var refreshToken = CookieHelper.Get(context.Request, "refreshToken");
 
       // No tokens → continue
       if (string.IsNullOrEmpty(accessToken) && string.IsNullOrEmpty(refreshToken))
       {
-          return;
+        await _next(context);
+        return;
       }
 
       var handler = new JwtSecurityTokenHandler();
+      string? userId = null;
 
-      // Try validate access token
+      // Try read access token (no validation here)
       try
       {
-          var jwt = handler.ReadJwtToken(accessToken);
-          var userId = jwt.Subject;
+        var jwt = handler.ReadJwtToken(accessToken);
+        userId = jwt.Subject;
 
-          var user = await userManager.FindByIdAsync(userId);
-          if (user != null)
-          {
-              return;
-          }
+        var existingUser = await userManager.FindByIdAsync(userId);
+        if (existingUser != null)
+        {
+          // Access token is valid → continue
+          await _next(context);
+          return;
+        }
       }
       catch
       {
-          // Access token invalid → try refresh
+        // Access token invalid → try refresh
       }
 
       // No refresh token → continue
       if (string.IsNullOrEmpty(refreshToken))
       {
-          return;
+        await _next(context);
+        return;
       }
 
-      // Try refresh
-      var newTokens = await refreshService.RefreshTokenAsync(refreshToken);
+      // Read refresh token from DB
+      var refreshEntity = await db.RefreshTokens
+        .FirstOrDefaultAsync(x => x.Token == refreshToken);
 
-      if (newTokens == null)
+      if (refreshEntity == null || refreshEntity.Revoked || refreshEntity.ExpiresAt < DateTime.UtcNow)
       {
-          context.Response.Cookies.Delete("accessToken");
-          context.Response.Cookies.Delete("refreshToken");
-          return;
+        CookieHelper.Delete(context.Response, "accessToken");
+        CookieHelper.Delete(context.Response, "refreshToken");
+        await _next(context);
+        return;
       }
+
+      var refreshUser = await userManager.FindByIdAsync(refreshEntity.UserId);
+      if (refreshUser == null)
+      {
+        CookieHelper.Delete(context.Response, "accessToken");
+        CookieHelper.Delete(context.Response, "refreshToken");
+        await _next(context);
+        return;
+      }
+
+      // Perform silent refresh via AuthService
+      var result = await authService.SilentRefreshAsync(refreshUser, refreshToken);
+
+      if (!result.Success)
+      {
+        CookieHelper.Delete(context.Response, "accessToken");
+        CookieHelper.Delete(context.Response, "refreshToken");
+        await _next(context);
+        return;
+      }
+
+      context.Items["AccessToken"] = result.AccessToken;
 
       // Set new access token
-      context.Response.Cookies.Append("accessToken", newTokens.AccessToken, new CookieOptions
-      {
-          HttpOnly = true,
-          Secure = true,
-          SameSite = SameSiteMode.Strict
-      });
+      CookieHelper.Set(context.Response, "accessToken", result.AccessToken!);
 
-      // Rotate refresh token
-      var newRefreshToken = await refreshService.CreateRefreshTokenAsync(
-          handler.ReadJwtToken(newTokens.RefreshToken).Subject
-      );
+      // Set new refresh token
+      CookieHelper.Set(context.Response, "refreshToken", result.RefreshToken!, TimeSpan.FromDays(30));
 
-      context.Response.Cookies.Append("refreshToken", newRefreshToken, new CookieOptions
-      {
-          HttpOnly = true,
-          Secure = true,
-          SameSite = SameSiteMode.Strict
-      });
+      await _next(context);
     }
   }
 }

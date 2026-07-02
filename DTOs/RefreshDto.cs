@@ -4,7 +4,10 @@ namespace Entry.Auth.DTOs
 {
   public class RefreshDto
   {
-    [Required]
-    public string RefreshToken { get; set; } = string.Empty;
+    [Required(ErrorMessage = "Refresh token is required")]
+    [MinLength(32, ErrorMessage = "Refresh token is too short")]
+    [MaxLength(512, ErrorMessage = "Refresh token is too long")]
+    [DataType(DataType.Text)]
+    public string? RefreshToken { get; set; }
   }
 }
