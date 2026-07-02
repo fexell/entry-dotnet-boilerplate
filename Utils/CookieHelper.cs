@@ -4,13 +4,6 @@ namespace Entry.Auth.Utils
 {
   public static class CookieHelper
   {
-    private static readonly CookieOptions DefaultOptions = new CookieOptions
-    {
-      HttpOnly = true,
-      Secure = true,
-      SameSite = SameSiteMode.Strict
-    };
-
     public static void Set(HttpResponse response, string key, string value, TimeSpan? maxAge = null, CookieOptions? options = null)
     {
       var opts = options ?? new CookieOptions
@@ -18,7 +11,7 @@ namespace Entry.Auth.Utils
         HttpOnly = true,
         Secure = true,
         SameSite = SameSiteMode.Strict,
-        MaxAge = maxAge ?? TimeSpan.FromDays(30)
+        MaxAge = maxAge
       };
 
       response.Cookies.Append(key, value, opts);

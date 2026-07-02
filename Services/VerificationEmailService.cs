@@ -30,6 +30,14 @@ namespace Entry.Auth.Services
       var baseUrl = _env.IsDevelopment() ? "http://localhost:5277" : _config["AppUrls:FrontendBaseUrl"];
       var link = $"{baseUrl}/verify-email?userId={user.Id}&token={Uri.EscapeDataString(token)}";
 
+      if(_env.IsDevelopment())
+      {
+        Console.WriteLine($"EMAIL VERIFICATION TOKEN:");
+        Console.WriteLine(token);
+        Console.WriteLine($"EMAIL VERIFICATION LINK:");
+        Console.WriteLine(link);
+      }
+
       await _emailService.SendAsync(
         user.Email!,
         "Verify your email",

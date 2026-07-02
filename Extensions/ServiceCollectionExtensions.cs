@@ -96,13 +96,15 @@ namespace Entry.Auth.Extensions
         {
           OnMessageReceived = context =>
           {
-            if(context.HttpContext.Items.TryGetValue("AccessToken", out var refreshed) && refreshed is string s)
+            // Prioritera nyss-refreshad token från denna request (satt av SilentRefreshMiddleware)
+            /* if (context.HttpContext.Items.TryGetValue("AccessToken", out var refreshed) && refreshed is string s)
             {
               context.Token = s;
               return Task.CompletedTask;
-            }
+            } */
 
-            if(context.Request.Cookies.TryGetValue("accessToken", out var token)) context.Token = token;
+            if (context.Request.Cookies.TryGetValue("accessToken", out var token))
+              context.Token = token;
 
             return Task.CompletedTask;
           }
@@ -135,8 +137,6 @@ namespace Entry.Auth.Extensions
       this IServiceCollection services
     )
     {
-      services.AddHttpContextAccessor();
-
       services.AddAuthorization(options =>
       {
         options.AddPolicy("Admin", policy =>

@@ -31,8 +31,7 @@ namespace Entry.Auth.Controllers
     {
       var result = await _authService.RegisterAsync(dto);
 
-      if (!result.Success)
-        return BadRequest(new { message = "Registration failed.", errors = result.Errors });
+      if (!result.Success) return BadRequest(new { message = "Registration failed.", errors = result.Errors });
 
       return Ok(new { message = "User created. Please verify your email." });
     }
@@ -91,8 +90,8 @@ namespace Entry.Auth.Controllers
       if (!result.Success)
         return Unauthorized(new { message = "Invalid credentials.", errors = result.Errors });
 
-      CookieHelper.Set(Response, "accessToken", result.AccessToken!);
-      CookieHelper.Set(Response, "refreshToken", result.RefreshToken!);
+      CookieHelper.Set(Response, "accessToken", result.AccessToken!, TimeSpan.FromHours(1));
+      CookieHelper.Set(Response, "refreshToken", result.RefreshToken!, TimeSpan.FromDays(30));
 
       return Ok(result);
     }

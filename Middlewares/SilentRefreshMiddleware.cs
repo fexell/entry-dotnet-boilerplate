@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.IdentityModel.Tokens.Jwt;
@@ -17,9 +18,17 @@ namespace Entry.Auth.Middlewares
     {
       _next = next;
     }
-    
+
     public async Task InvokeAsync(HttpContext context)
     {
+      var endpoint = context.GetEndpoint();
+
+      if (endpoint is null || endpoint.Metadata.GetMetadata<IAllowAnonymous>() != null)
+      {
+        await _next(context);
+        return;
+      }
+
       var authService = context.RequestServices.GetRequiredService<IAuthService>();
       var userManager = context.RequestServices.GetRequiredService<UserManager<AppUser>>();
       var db = context.RequestServices.GetRequiredService<AppDbContext>();
@@ -95,12 +104,10 @@ namespace Entry.Auth.Middlewares
         return;
       }
 
+      // Gör den nya token:en tillgänglig för RESTEN av denna request
       context.Items["AccessToken"] = result.AccessToken;
 
-      // Set new access token
-      CookieHelper.Set(context.Response, "accessToken", result.AccessToken!);
-
-      // Set new refresh token
+      CookieHelper.Set(context.Response, "accessToken", result.AccessToken!, TimeSpan.FromHours(1));
       CookieHelper.Set(context.Response, "refreshToken", result.RefreshToken!, TimeSpan.FromDays(30));
 
       await _next(context);
